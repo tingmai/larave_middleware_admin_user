@@ -1,0 +1,239 @@
+Laravel
+Admin/User using Middleware
+=============================
+
+++++++++++++++++++++++++++++++++++++++++++++
+Step-1: create authentication UI and settings
++++++++++++++++++++++++++++++++++++++++++++++
+
+[command]:
+composer require laravel/ui
+php artisan ui bootstrap --auth
+  
+npm install
+npm run dev
+npm run build
+
++++++++++++++++++++++++++++++++++++++++++
+Step-2: Add is_admin column to user table
+++++++++++++++++++++++++++++++++++++++++++
+[user table]:
+
+ Schema::create('users', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->timestamp('email_verified_at')->nullable();
+            $table->string('password');
+            //$table->boolean('is_admin')->nullable();
+            $table->rememberToken();
+            $table->timestamps();
+  });
+   
+=> migrate updated user table
+
+[command]:
+- php artisan migrate
+
+++++++++++++++++++++++++++++++++++++++++++
+Step-3: Create Admin Middleware
+++++++++++++++++++++++++++++++++++++++++++
+
+
+[command]:
+- php artisan make:middleware IsAdmin
+
+[code]:
+------------------------------------------
+<?php
+
+namespace App\Http\Middleware;
+
+use Closure;
+use Auth;
+
+class IsAdmin
+{
+  
+    public function handle($request, Closure $next)
+    {
+        if (Auth::user() &&  Auth::user()->is_admin == 1) {
+             return $next($request);
+        }
+
+        return redirect('home')->with('error','You don't have admin access');
+    }
+}
+
+-----------------------------------------
+
+=> add the following IsAdmin middleware class to the $routeMiddleware
+
+=>app\http\kernel.php
+
+[code]:
+----------------------------------------------
+    protected $routeMiddleware = [
+        'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
+        'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
+        //'admin' => \App\Http\Middleware\IsAdmin::class,
+    ];
+
+--------------------------------------------------
+
++++++++++++++++++++++++++++++++++++++++++++++++
+Step-4: Admin Protected Middleware Route
++++++++++++++++++++++++++++++++++++++++++++++++
+=> app\routes\web.php
+
+[code]:
+----------------------------------------------------
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\HomeController;
+ 
+ Route::get('/', function () {
+    return view('welcome');
+});
+
+Auth::routes();
+
+Route::get('home', [HomeController::class, 'index'])->name('home'); 
+
+Route::group(['middleware' => ['auth', 'admin']], function () {
+    Route::get('admin-home', [HomeController::class, 'adminHome'])->name('admin.home');
+});
+
+
+--------------------------------------------
++++++++++++++++++++++++++++++++++++++++++++++++
+Step-5 : Create view blade pages
++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+
+=> resources\views\home.blade.php
+
+[code]:
+----------------------------------------------
+@extends('layouts.app')
+
+@section('content')
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">Dashboard</div>
+
+                <div class="card-body">
+                    @if (session('error'))
+                    <div class="alert alert-danger">
+                      {{ session('error') }}
+                    </div>
+                    @endif
+                    @if (session('status'))
+                        <div class="alert alert-success" role="alert">
+                            {{ session('status') }}
+                        </div>
+                    @endif
+
+                    You are logged in!
+
+                </div>
+                <div class="card-body">
+                    <div class="panel-body">
+                      Check admin view:
+                      <a href="{{route('admin.home')}}">Admin Home</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endsection
+
+----------------------------------------------
+
+
+=> resources\views\admin-home.blade.php
+
+
+[code]:
+----------------------------------------------
+@extends('layouts.app')
+
+@section('content')
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">Admin Home</div>
+
+                <div class="card-body">
+                  Welcome to admin dashboard
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endsection
+
+
+----------------------------------------------
+++++++++++++++++++++++++++++++++++++++
+Step-7: Update Controller Methods
+++++++++++++++++++++++++++++++++++++++
+
+
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+
+class HomeController extends Controller
+{
+    /**
+     * Create a new controller instance.
+     *
+     * @return void
+     */
+    public function __construct()
+    {
+        $this->middleware('auth');
+    }
+
+    /**
+     * Show the application dashboard.
+     *
+     * @return \Illuminate\Contracts\Support\Renderable
+     */
+    public function index()
+    {
+        return view('home');
+    }
+
+    public function adminHome()
+    {
+        return view('admin-home');
+    }
+}
+
+-----------------------------------------------------------------------------------
+
+Route::group(['middleware' => ['auth', 'admin']], function () {
+    Route::get('admin-home', [HomeController::class, 'adminHome'])->name('admin.home');
+});
+
+------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
